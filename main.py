@@ -1,5 +1,6 @@
 import machine
-import ssd1306
+from ssd1306 import SSD1306_I2C
+from machine import I2C
 from pyb import ADC
 from machine import Pin, Signal, Timer
 import time
@@ -34,10 +35,13 @@ EMPTY_HEART = [
 ]
 
 rtc = machine.RTC()
-rtc.datetime((2023, 4, 17, 1, 10, 15, 0, 0))
+rtc.datetime((2023, 4, 17, 1, 12, 15, 0, 0))
 
 #Display 
 
+btn1 = machine.Pin('SW1', machine.Pin.IN, machine.Pin.PULL_UP)
+btn2 = machine.Pin('SW2', machine.Pin.IN, machine.Pin.PULL_UP)
+btn3 = machine.Pin('SW3', machine.Pin.IN, machine.Pin.PULL_UP)
 
 def display_time():
     year, month, day, weekday, hour, mins, secs, millisecs = rtc.datetime() 
@@ -59,13 +63,11 @@ def draw_outline():
     oled.hline(0, 0, 128, 1)
     oled.hline(0, 63, 128, 1)
     oled.hline(0, 12, 128, 1)
-    oled.vline(0, 0, 64, 1)
-    oled.vline(127, 0, 64, 1)
 
 i2c = machine.I2C(scl=machine.Pin('B9'),sda=machine.Pin('B8'), freq=200000)
 i2c.scan()
 
-oled = ssd1306.SSD1306_I2C(128, 64, i2c)
+oled = SSD1306_I2C(128, 64, i2c)
 
 draw_outline()
 
@@ -73,7 +75,6 @@ draw_outline()
 
 oled.show()
 
-oled.hw_scroll_off()
 
 MAX_HISTORY = 250
 TOTAL_BEATS = 30
@@ -86,8 +87,6 @@ def calculate_bpm(beats):
             return (len(beats) / (beat_time)) * 60
 
 def detect():
-    # Maintain a log of previous values to
-    # determine min, max and threshold.
     history = []
     beats = []
     bpm = None
@@ -98,7 +97,6 @@ def detect():
 
         history.append(v)
 
-        # Get the tail, up to MAX_HISTORY length
         history = history[-MAX_HISTORY:]
 
         minima, maxima = min(history), max(history)
@@ -124,10 +122,11 @@ def refresh(bpm, beat, v, minima, maxima):
 
     oled.scroll(-1,0)
 
-    #if maxima-minima > 0:
-        #y = 51 - int(32 * (v-minima) / (maxima-minima))
-        #oled.line(124, last_y + 13, 125, y + 13, 1)
-        #last_y = y
+    if maxima-minima > 0:
+        y = 32 - int(16 * (v-minima) / (maxima-minima))
+        if (last_y != 0 and y != 0):
+            oled.line(125, last_y + 13, 126, y + 13, 1)
+        last_y = y
     oled.fill_rect(1,1,126, 10,0)
 
     if bpm:
